@@ -1,0 +1,93 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOwner() {
+      return isAuthenticated() && getUserData().role == 'owner';
+    }
+
+    function isWorker() {
+      return isAuthenticated() && getUserData().role == 'worker';
+    }
+
+    function isTodayDate(dateString) {
+      // Note: Firestore rules use request.time which is in UTC.
+      // Comparing string dates with UTC timestamps can have timezone issues.
+      // This is an approximation. For strict enforcement, use Cloud Functions.
+      let now = request.time;
+      let year = now.year();
+      let month = now.month() < 10 ? '0' + now.month() : '' + now.month();
+      let day = now.day() < 10 ? '0' + now.day() : '' + now.day();
+      let todayStr = year + '-' + month + '-' + day;
+      return dateString == todayStr;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isOwner());
+      allow write: if isOwner(); // Only owner can create/update users
+    }
+
+    // Sales entries collection
+    match /salesEntries/{entryId} {
+      allow read: if isAuthenticated() && (
+        isOwner() ||
+        (isWorker() && resource.data.workerId == request.auth.uid)
+      );
+
+      allow create: if isAuthenticated() && (
+        isOwner() ||
+        (isWorker() &&
+          request.resource.data.workerId == request.auth.uid &&
+          request.resource.data.createdBy == request.auth.uid &&
+          request.resource.data.isDeleted == false)
+      );
+
+      allow update: if isAuthenticated() && (
+        isOwner() ||
+        (isWorker() && resource.data.workerId == request.auth.uid)
+      );
+
+      allow delete: if false; // Deletes are handled via soft delete (update)
+    }
+
+    // Book photos collection
+    match /bookPhotos/{photoId} {
+      allow read: if isAuthenticated() && (
+        isOwner() ||
+        (isWorker() && resource.data.uploadedBy == request.auth.uid)
+      );
+
+      allow create: if isAuthenticated() && (
+        isOwner() ||
+        (isWorker() && request.resource.data.uploadedBy == request.auth.uid)
+      );
+
+      allow update: if isOwner();
+      allow delete: if false;
+    }
+
+    // Audit logs collection
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated() && isOwner();
+      allow create: if isAuthenticated(); // Anyone authenticated can create logs
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Settings collection (if used)
+    match /settings/{settingId} {
+      allow read, write: if isAuthenticated() && isOwner();
+    }
+  }
+}
