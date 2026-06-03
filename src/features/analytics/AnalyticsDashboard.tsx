@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useAuth } from "../auth/useAuth";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid } from "recharts";
 import { useAllEntries } from "../../hooks/useSalesEntries";
 import { useUsers } from "../../hooks/useUsers";
 import { useAllBookPhotos } from "../../hooks/useBookPhotos";
@@ -14,15 +13,13 @@ import { exportToExcel } from "../../utils/exportExcel";
 import { exportToPdf } from "../../utils/exportPdf";
 import toast from "react-hot-toast";
 
-const COLORS = ["#059669", "#2563eb"];
+const COLORS = ["#d97706", "#c2410c"];
 
 export function AnalyticsDashboard() {
-  const { user } = useAuth();
   const { entries, loading, fetchAll } = useAllEntries();
   const { users } = useUsers();
-  const { photos } = useAllBookPhotos();
+  const { photos, fetchAll: fetchPhotos } = useAllBookPhotos();
   const { logs } = useAuditLogs();
-  const [fetched, setFetched] = useState(false);
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -30,7 +27,11 @@ export function AnalyticsDashboard() {
   const [workerFilter, setWorkerFilter] = useState("");
   const [itemSearch, setItemSearch] = useState("");
 
-  useEffect(() => { if (!fetched) { fetchAll(); setFetched(true); } }, [fetchAll, fetched]);
+  useEffect(() => {
+    void Promise.resolve().then(async () => {
+      await Promise.all([fetchAll(), fetchPhotos()]);
+    });
+  }, [fetchAll, fetchPhotos]);
 
   const filtered = useMemo(() => {
     let list = entries.filter((e) => !e.isDeleted);
@@ -57,6 +58,13 @@ export function AnalyticsDashboard() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total }));
   }, [filtered]);
 
+  const cumulativeTrend = useMemo(() => {
+    return salesByDay.reduce<{ date: string; cumulative: number }[]>((acc, d) => {
+      const prev = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
+      return [...acc, { date: d.date, cumulative: prev + d.total }];
+    }, []);
+  }, [salesByDay]);
+
   const cashVsScan = useMemo(() => [
     { name: "Cash", value: cashTotal },
     { name: "Scan", value: scanTotal },
@@ -69,8 +77,6 @@ export function AnalyticsDashboard() {
     });
     return Array.from(map.entries()).sort(([, a], [, b]) => b - a).slice(0, 20).map(([item, amount]) => ({ item, amount }));
   }, [filtered]);
-
-  const selCss = "bg-white border border-stone-200 rounded px-3 py-2 text-sm text-stone-700";
 
   if (loading) return <LoadingSpinner />;
 
@@ -115,10 +121,11 @@ export function AnalyticsDashboard() {
           {salesByDay.length === 0 ? <EmptyState title="No data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={salesByDay}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
                 <XAxis dataKey="date" tick={{ fill: "#a8a29e", fontSize: 10 }} />
                 <YAxis tick={{ fill: "#a8a29e", fontSize: 10 }} />
                 <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 4, fontSize: 11 }} />
-                <Bar dataKey="total" fill="#059669" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="total" fill="#1e3a5f" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -129,11 +136,26 @@ export function AnalyticsDashboard() {
           {cashVsScan.every((c) => c.value === 0) ? <EmptyState title="No data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={cashVsScan} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
+                <Pie data={cashVsScan} cx="50%" cy="50%" innerRadius={40} outerRadius={70} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                   {cashVsScan.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
                 </Pie>
                 <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 4, fontSize: 11 }} />
               </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="border border-stone-200 rounded p-3 bg-white lg:col-span-2">
+          <h3 className="text-xs uppercase tracking-wider text-stone-400 mb-3">Cumulative Sales Trend</h3>
+          {cumulativeTrend.length === 0 ? <EmptyState title="No data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={cumulativeTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                <XAxis dataKey="date" tick={{ fill: "#a8a29e", fontSize: 10 }} />
+                <YAxis tick={{ fill: "#a8a29e", fontSize: 10 }} />
+                <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 4, fontSize: 11 }} />
+                <Line type="monotone" dataKey="cumulative" stroke="#1e3a5f" strokeWidth={2} dot={{ fill: "#1e3a5f", r: 3 }} />
+              </LineChart>
             </ResponsiveContainer>
           )}
         </div>

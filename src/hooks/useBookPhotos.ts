@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   collection,
   query,
@@ -36,7 +36,7 @@ export function useBookPhotos(user: AppUser | null) {
           constraints.push(where("uploadedBy", "==", user.uid));
         }
 
-        if (date) {
+        if (date !== undefined) {
           constraints.push(where("date", "==", date));
         }
 
@@ -55,12 +55,6 @@ export function useBookPhotos(user: AppUser | null) {
     },
     [user]
   );
-
-  useEffect(() => {
-    if (user) {
-      fetchPhotos();
-    }
-  }, [user, fetchPhotos]);
 
   const uploadPhotos = async (
     files: File[],
@@ -127,7 +121,7 @@ export function useAllBookPhotos() {
         orderBy("createdAt", "desc"),
       ];
 
-      if (date) {
+      if (date !== undefined) {
         constraints.push(where("date", "==", date));
       }
 

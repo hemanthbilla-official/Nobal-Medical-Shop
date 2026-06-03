@@ -13,6 +13,24 @@ export const getCurrentTimeString = (): string => {
   return `${hours}:${minutes}`;
 };
 
+export const toDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+export const addDaysToDateString = (dateStr: string, days: number): string => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return toDateString(date);
+};
+
+export const getYesterdayString = (): string => {
+  return addDaysToDateString(getTodayString(), -1);
+};
+
 export const formatDate = (dateStr: string): string => {
   const [year, month, day] = dateStr.split("-");
   return `${day}/${month}/${year}`;
@@ -41,13 +59,18 @@ export const formatCurrency = (amount: number): string => {
 };
 
 export const getDateRangePreset = (
-  preset: "today" | "week" | "month" | "year"
+  preset: "today" | "yesterday" | "week" | "month" | "year"
 ): { startDate: string; endDate: string } => {
   const now = new Date();
   const end = getTodayString();
 
   if (preset === "today") {
     return { startDate: end, endDate: end };
+  }
+
+  if (preset === "yesterday") {
+    const yesterday = getYesterdayString();
+    return { startDate: yesterday, endDate: yesterday };
   }
 
   const start = new Date(now);

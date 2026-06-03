@@ -205,13 +205,9 @@ The `firestore.rules` file enforces role-based access:
 
 - **Owner**: Full read/write access to all collections
 - **Worker**: Can read/write their own sales entries, can read/write their own book photos
-- **Worker restrictions**: Can only update/delete sales entries created on the current date
+- **Worker restrictions**: Can only access sales entries and book photos they created
 - **Audit logs**: Only owner can read; any authenticated user can create
 - **Deletes**: Physical deletes are disabled; use soft deletes via updates
-
-### Known Security Limitation
-
-The current-date comparison in security rules uses `request.time` (UTC), which may not match the local date string (YYYY-MM-DD). This is documented in the rules. For strict production enforcement, implement server-side validation using Firebase Cloud Functions.
 
 ## Roles & Permissions
 
@@ -219,11 +215,11 @@ The current-date comparison in security rules uses `request.time` (UTC), which m
 |---------|-------|--------|
 | Add sales entries | Yes | Yes |
 | View sales entries | All | Own entries only |
-| Edit sales entries | Any date | Current day only |
-| Delete sales entries | Any date (soft delete) | Current day only (soft delete) |
+| Edit sales entries | Any date | Own entries, any date |
+| Delete sales entries | Any date (soft delete) | Own entries, any date (soft delete) |
 | Upload book photos | Yes | Yes |
 | View book photos | All | Own uploads only |
-| View analytics | Full dashboard | Limited (own daily totals) |
+| View analytics | Full dashboard | Limited (own sales totals) |
 | Export Excel/PDF | Yes | No |
 | View audit logs | Yes | No |
 
@@ -241,8 +237,7 @@ node scripts/create-user.mjs  # Create owner/worker accounts (see setup step 3)
 
 1. **Book photo comparison is manual** - Photos are stored for manual reference only
 2. **OCR is not included** - No automatic text extraction from book photos
-3. **Worker date restrictions** - Current-day validation is enforced in UI and Firestore rules where possible, but strict server-side validation may require Firebase Cloud Functions in production due to timezone differences between `request.time` (UTC) and local date strings
-4. **Single shop only** - The app is designed for one medical shop and does not support multi-tenant or multi-shop setups
+3. **Single shop only** - The app is designed for one medical shop and does not support multi-tenant or multi-shop setups
 
 ## Project Structure
 

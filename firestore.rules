@@ -20,18 +20,6 @@ service cloud.firestore {
       return isAuthenticated() && getUserData().role == 'worker';
     }
 
-    function isTodayDate(dateString) {
-      // Note: Firestore rules use request.time which is in UTC.
-      // Comparing string dates with UTC timestamps can have timezone issues.
-      // This is an approximation. For strict enforcement, use Cloud Functions.
-      let now = request.time;
-      let year = now.year();
-      let month = now.month() < 10 ? '0' + now.month() : '' + now.month();
-      let day = now.day() < 10 ? '0' + now.day() : '' + now.day();
-      let todayStr = year + '-' + month + '-' + day;
-      return dateString == todayStr;
-    }
-
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isOwner());

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import { useAllEntries } from "../../hooks/useSalesEntries";
 import { SalesEntryTable } from "../../components/SalesEntryTable";
@@ -25,16 +25,23 @@ export function AllSalesEntries() {
   const [paymentFilter, setPaymentFilter] = useState("");
   const [itemSearch, setItemSearch] = useState("");
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const fetchCurrentEntries = useCallback(async () => {
+    await fetchAll({
+      startDate,
+      endDate,
+      paymentType: paymentFilter,
+    });
+  }, [endDate, fetchAll, paymentFilter, startDate]);
+
+  useEffect(() => {
+    void Promise.resolve().then(fetchCurrentEntries);
+  }, [fetchCurrentEntries]);
 
   const activeEntries = entries.filter((e) => !e.isDeleted);
   const todayStr = getTodayString();
   const todayEntries = activeEntries.filter((e) => e.date === todayStr);
 
   const filtered = activeEntries.filter((e) => {
-    if (startDate && e.date < startDate) return false;
-    if (endDate && e.date > endDate) return false;
-    if (paymentFilter && e.paymentType !== paymentFilter) return false;
     if (itemSearch && !e.itemName.toLowerCase().includes(itemSearch.toLowerCase())) return false;
     return true;
   });
@@ -46,7 +53,7 @@ export function AllSalesEntries() {
       await createAuditLog({ action: "update", entityType: "salesEntry", entityId: editingEntry.id, performedBy: user!.uid, performedByName: user!.name, performedByRole: user!.role, before: editingEntry as unknown as Record<string, unknown>, after: { ...editingEntry, ...data } as unknown as Record<string, unknown> });
       toast.success("Entry updated");
       setEditingEntry(null);
-      await fetchAll();
+      await fetchCurrentEntries();
     } catch { toast.error("Failed to update entry"); }
   };
 
@@ -57,7 +64,7 @@ export function AllSalesEntries() {
       await createAuditLog({ action: "delete", entityType: "salesEntry", entityId: deleteTarget.id, performedBy: user!.uid, performedByName: user!.name, performedByRole: user!.role, before: deleteTarget as unknown as Record<string, unknown>, after: { ...deleteTarget, isDeleted: true } as unknown as Record<string, unknown> });
       toast.success("Entry deleted");
       setDeleteTarget(null);
-      await fetchAll();
+      await fetchCurrentEntries();
     } catch { toast.error("Failed to delete entry"); }
   };
 
@@ -68,7 +75,7 @@ export function AllSalesEntries() {
       await createAuditLog({ action: "create", entityType: "salesEntry", entityId: docRef.id, performedBy: user!.uid, performedByName: user!.name, performedByRole: user!.role, after: entryData as unknown as Record<string, unknown> });
       toast.success("Sale added");
       setShowAddForm(false);
-      await fetchAll();
+      await fetchCurrentEntries();
     } catch { toast.error("Failed to add sale"); }
   };
 
@@ -88,9 +95,12 @@ export function AllSalesEntries() {
       )}
 
       {editingEntry && (
-        <div className="border border-stone-200 rounded p-4 bg-white">
-          <SalesEntryForm onSubmit={handleUpdate} initialData={{ serialNumber: editingEntry.serialNumber, itemName: editingEntry.itemName, paymentType: editingEntry.paymentType, amount: editingEntry.amount, date: editingEntry.date, time: editingEntry.time }} submitLabel="Update Sale" />
-          <button onClick={() => setEditingEntry(null)} className="mt-3 text-xs text-stone-400 hover:text-stone-600">Cancel</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-2 sm:px-4">
+          <div className="bg-white border border-stone-200 rounded p-4 sm:p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-sm mx-2 sm:mx-0">
+            <h3 className="text-base font-medium text-stone-800 mb-3">Edit Sale</h3>
+            <SalesEntryForm onSubmit={handleUpdate} initialData={{ serialNumber: editingEntry.serialNumber, itemName: editingEntry.itemName, paymentType: editingEntry.paymentType, amount: editingEntry.amount, date: editingEntry.date, time: editingEntry.time }} submitLabel="Update Sale" />
+            <button onClick={() => setEditingEntry(null)} className="mt-3 text-xs text-stone-400 hover:text-stone-600">Cancel</button>
+          </div>
         </div>
       )}
 

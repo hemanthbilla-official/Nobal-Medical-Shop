@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   collection,
   query,
@@ -12,7 +12,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firestore";
 import { createAuditLog } from "../utils/auditLogger";
-import { getTodayString } from "../utils/date";
 import type { SalesEntry, SalesEntryFormData, AppUser } from "../types";
 
 export function useSalesEntries(user: AppUser | null) {
@@ -31,8 +30,17 @@ export function useSalesEntries(user: AppUser | null) {
 
         if (user.role === "worker") {
           constraints.push(where("workerId", "==", user.uid));
+          if (filters && "date" in filters) {
+            constraints.push(where("date", "==", filters.date));
+          }
         } else {
           constraints.push(where("isDeleted", "==", false));
+          if (filters && "date" in filters) {
+            constraints.push(where("date", "==", filters.date));
+          }
+          if (filters?.workerId) {
+            constraints.push(where("workerId", "==", filters.workerId));
+          }
         }
 
         const q = query(collection(db, "salesEntries"), ...constraints);
@@ -43,11 +51,9 @@ export function useSalesEntries(user: AppUser | null) {
         })) as SalesEntry[];
 
         if (user.role === "worker") {
-          const dateFilter = filters?.date ?? "";
-          list = list.filter((e) => !e.isDeleted && (!dateFilter || e.date === dateFilter));
+          list = list.filter((e) => !e.isDeleted);
         } else {
-          if (filters?.date) list = list.filter((e) => e.date === filters.date);
-          if (filters?.workerId) list = list.filter((e) => e.workerId === filters.workerId);
+          list = list.filter((e) => !e.isDeleted);
         }
 
         list.sort((a, b) => {
@@ -64,17 +70,6 @@ export function useSalesEntries(user: AppUser | null) {
     },
     [user]
   );
-
-  useEffect(() => {
-    if (user) {
-      if (user.role === "worker") {
-        const today = getTodayString();
-        fetchEntries({ date: today });
-      } else {
-        fetchEntries();
-      }
-    }
-  }, [user, fetchEntries]);
 
   const createEntry = async (data: SalesEntryFormData & { serialNumber: string; time: string }) => {
     if (!user) return;
@@ -173,6 +168,18 @@ export function useAllEntries() {
         if (!filters?.includeDeleted) {
           constraints.push(where("isDeleted", "==", false));
         }
+        if (filters?.startDate) {
+          constraints.push(where("date", ">=", filters.startDate));
+        }
+        if (filters?.endDate) {
+          constraints.push(where("date", "<=", filters.endDate));
+        }
+        if (filters?.paymentType) {
+          constraints.push(where("paymentType", "==", filters.paymentType));
+        }
+        if (filters?.workerId) {
+          constraints.push(where("workerId", "==", filters.workerId));
+        }
 
         const q = query(collection(db, "salesEntries"), ...constraints);
         const snapshot = await getDocs(q);
@@ -186,18 +193,6 @@ export function useAllEntries() {
           return (b.time ?? "").localeCompare(a.time ?? "");
         });
 
-        if (filters?.startDate) {
-          list = list.filter((e) => e.date >= filters.startDate!);
-        }
-        if (filters?.endDate) {
-          list = list.filter((e) => e.date <= filters.endDate!);
-        }
-        if (filters?.paymentType) {
-          list = list.filter((e) => e.paymentType === filters.paymentType);
-        }
-        if (filters?.workerId) {
-          list = list.filter((e) => e.workerId === filters.workerId);
-        }
         if (filters?.itemName) {
           list = list.filter((e) =>
             e.itemName.toLowerCase().includes(filters.itemName!.toLowerCase())

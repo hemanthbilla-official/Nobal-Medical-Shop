@@ -7,6 +7,8 @@ interface Props {
   initialData?: SalesEntryFormData & { serialNumber: string; time: string };
   submitLabel?: string;
   nextSerialNumber?: number;
+  selectedDate?: string;
+  onDateChange?: (date: string) => void;
 }
 
 export function SalesEntryForm({
@@ -14,25 +16,35 @@ export function SalesEntryForm({
   initialData,
   submitLabel = "Add Sale",
   nextSerialNumber = 1,
+  selectedDate,
+  onDateChange,
 }: Props) {
   const [itemName, setItemName] = useState(initialData?.itemName ?? "");
   const [paymentType, setPaymentType] = useState<PaymentType>(
     initialData?.paymentType ?? "cash"
   );
   const [amount, setAmount] = useState(initialData?.amount ?? 0);
-  const [date, setDate] = useState(initialData?.date ?? getTodayString());
+  const [date, setDate] = useState(initialData?.date ?? selectedDate ?? getTodayString());
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const currentDate = selectedDate ?? date;
   const serialNumber = initialData?.serialNumber ?? String(nextSerialNumber);
   const time = initialData?.time ?? getCurrentTimeString();
+
+  const handleDateChange = (nextDate: string) => {
+    if (selectedDate === undefined) {
+      setDate(nextDate);
+    }
+    onDateChange?.(nextDate);
+  };
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!itemName.trim()) errs.itemName = "Required";
     if (amount < 0) errs.amount = "Must be 0 or more";
     if (!paymentType) errs.paymentType = "Required";
-    if (!date) errs.date = "Required";
+    if (!currentDate) errs.date = "Required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -46,7 +58,7 @@ export function SalesEntryForm({
         itemName: itemName.trim(),
         paymentType,
         amount,
-        date,
+        date: currentDate,
         serialNumber,
         time,
       });
@@ -54,7 +66,9 @@ export function SalesEntryForm({
         setItemName("");
         setPaymentType("cash");
         setAmount(0);
-        setDate(getTodayString());
+        if (selectedDate === undefined) {
+          setDate(getTodayString());
+        }
       }
     } catch {
       // handled by caller
@@ -104,7 +118,7 @@ export function SalesEntryForm({
         </div>
         <div>
           <label className={lbl}>Date</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={ipt} />
+          <input type="date" value={currentDate} onChange={(e) => handleDateChange(e.target.value)} className={ipt} />
           {errors.date && <p className={errTxt}>{errors.date}</p>}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../auth/useAuth";
 import { useSalesEntries } from "../../hooks/useSalesEntries";
 import { SalesEntryForm } from "../../components/SalesEntryForm";
@@ -8,7 +8,7 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { EmptyState } from "../../components/EmptyState";
 import { LoadingSpinner } from "../../components/LoadingSpinner";
 import { summaryCardData } from "../../utils/format";
-import { getTodayString } from "../../utils/date";
+import { addDaysToDateString, getTodayString, getYesterdayString } from "../../utils/date";
 import toast from "react-hot-toast";
 import type { SalesEntry, SalesEntryFormData } from "../../types";
 
@@ -17,16 +17,26 @@ export function WorkerDashboard() {
   const { entries, loading, createEntry, updateEntry, deleteEntry, fetchEntries } = useSalesEntries(user);
   const [editingEntry, setEditingEntry] = useState<SalesEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SalesEntry | null>(null);
-  const today = getTodayString();
+  const [selectedDate, setSelectedDate] = useState(getTodayString());
 
-  const todayEntries = entries.filter((e) => !e.isDeleted && e.date === today);
-  const stats = summaryCardData(todayEntries);
+  const activeEntries = entries.filter((e) => !e.isDeleted);
+  const stats = summaryCardData(activeEntries);
+  const dateButtonCss = "px-3 py-2 bg-white hover:bg-stone-100 text-stone-600 rounded text-xs font-medium transition-colors border border-stone-200";
+  const shiftSelectedDate = (days: number) => {
+    setSelectedDate((date) => addDaysToDateString(date || getTodayString(), days));
+  };
+
+  useEffect(() => {
+    if (user) {
+      void Promise.resolve().then(() => fetchEntries({ date: selectedDate }));
+    }
+  }, [fetchEntries, selectedDate, user]);
 
   const handleCreate = async (data: SalesEntryFormData & { serialNumber: string; time: string }) => {
     try {
       await createEntry(data);
       toast.success("Sale added");
-      await fetchEntries({ date: today });
+      await fetchEntries({ date: data.date });
     } catch {
       toast.error("Failed to add sale");
     }
@@ -38,7 +48,7 @@ export function WorkerDashboard() {
       await updateEntry(editingEntry.id, data, editingEntry);
       toast.success("Entry updated");
       setEditingEntry(null);
-      await fetchEntries({ date: today });
+      await fetchEntries({ date: selectedDate });
     } catch {
       toast.error("Failed to update entry");
     }
@@ -50,7 +60,7 @@ export function WorkerDashboard() {
       await deleteEntry(deleteTarget.id, deleteTarget);
       toast.success("Entry deleted");
       setDeleteTarget(null);
-      await fetchEntries({ date: today });
+      await fetchEntries({ date: selectedDate });
     } catch {
       toast.error("Failed to delete entry");
     }
@@ -59,12 +69,22 @@ export function WorkerDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-base font-medium text-stone-800 mb-3">Add Sale</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+          <h2 className="text-base font-medium text-stone-800">Add Sale</h2>
+          <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+            <button type="button" onClick={() => setSelectedDate(getTodayString())} className={dateButtonCss}>Today</button>
+            <button type="button" onClick={() => setSelectedDate(getYesterdayString())} className={dateButtonCss}>Yesterday</button>
+            <button type="button" onClick={() => shiftSelectedDate(-1)} className={dateButtonCss}>Previous Day</button>
+            <button type="button" onClick={() => shiftSelectedDate(1)} className={dateButtonCss}>Next Day</button>
+          </div>
+        </div>
         <div className="border border-stone-200 rounded p-4 bg-white">
           <SalesEntryForm
             onSubmit={handleCreate}
             submitLabel="Add Sale"
-            nextSerialNumber={todayEntries.length + 1}
+            nextSerialNumber={activeEntries.length + 1}
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
           />
         </div>
       </div>
@@ -73,19 +93,19 @@ export function WorkerDashboard() {
         <SummaryCard label="Total" value={"\u20B9" + stats.totalSales.toLocaleString("en-IN")} />
         <SummaryCard label="Cash" value={"\u20B9" + stats.cashTotal.toLocaleString("en-IN")} />
         <SummaryCard label="Scan" value={"\u20B9" + stats.scanTotal.toLocaleString("en-IN")} />
-        <SummaryCard label="Entries" value={todayEntries.length} />
+        <SummaryCard label="Entries" value={activeEntries.length} />
       </div>
 
       <div>
-        <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-2">Today's Sales</h3>
-        {loading ? <LoadingSpinner /> : todayEntries.length === 0 ? (
-          <EmptyState title="No sales yet today" message="Add a sale using the form above." />
+        <h3 className="text-sm font-medium text-stone-500 uppercase tracking-wider mb-2">Sales for {selectedDate}</h3>
+        {loading ? <LoadingSpinner /> : activeEntries.length === 0 ? (
+          <EmptyState title="No sales yet" message="Add a sale using the form above." />
         ) : (
           <div className="border border-stone-200 rounded bg-white overflow-hidden">
             <SalesEntryTable
-              entries={todayEntries}
-              onEdit={(entry) => entry.date === today && setEditingEntry(entry)}
-              onDelete={(entry) => entry.date === today && setDeleteTarget(entry)}
+              entries={activeEntries}
+              onEdit={setEditingEntry}
+              onDelete={setDeleteTarget}
             />
           </div>
         )}

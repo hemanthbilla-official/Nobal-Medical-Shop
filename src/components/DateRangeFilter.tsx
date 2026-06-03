@@ -3,7 +3,7 @@ interface Props {
   endDate: string;
   onStartDateChange: (val: string) => void;
   onEndDateChange: (val: string) => void;
-  onPreset?: (preset: "today" | "week" | "month" | "year") => void;
+  onPreset?: (preset: "today" | "yesterday" | "week" | "month" | "year") => void;
 }
 
 export function DateRangeFilter({
@@ -32,7 +32,7 @@ export function DateRangeFilter({
       </div>
       {onPreset && (
         <div className="flex gap-1">
-          {(["today", "week", "month", "year"] as const).map((p) => (
+          {(["today", "yesterday", "week", "month", "year"] as const).map((p) => (
             <button
               key={p}
               onClick={() => onPreset(p)}
